@@ -20,10 +20,23 @@ os.makedirs(TMP, exist_ok=True)
 W, H = 1920, 1080
 CW, CH = 980, 888            # the "display" the footage plays in
 CX, CY = 880, 96
-INTRO, OUTRO = 3.6, 4.4
-RAW_START, RAW_END = 0.4, 53.0
-MAIN = RAW_END - RAW_START
+INTRO, OUTRO = 2.0, 2.8
+# the cut: (raw start, raw end, playback speed). Only the beats that sell the product, played fast.
+SEGMENTS = [(2.0, 6.5, 1.6), (9.0, 13.5, 1.6), (16.2, 20.0, 1.7), (34.9, 47.0, 1.4)]
+MAIN = sum((b - a) / s for a, b, s in SEGMENTS)
 TOTAL = INTRO + MAIN + OUTRO
+
+
+def vt(raw_t):
+    """Raw-footage time -> time in the final video (clamped into the cut)."""
+    off = INTRO
+    for a, b, s in SEGMENTS:
+        if raw_t <= a:
+            return off
+        if raw_t <= b:
+            return off + (raw_t - a) / s
+        off += (b - a) / s
+    return off
 FONT = "/System/Library/Fonts/SFNS.ttf"
 REPO = os.environ.get("ISLAND_REPO_URL", "github.com/lukaas-jopcik/claude-island")
 
@@ -96,14 +109,11 @@ def make_card_layers():
 # --- captions ---------------------------------------------------------------------------------------------------------
 CAPTIONS = [
     # raw start, raw end, tag, colour, title, sub  (times measured from the recording, see demo/record.sh)
-    (0.4, 2.1,  "ALWAYS ON",  BLUE,    "Always there.\nNever in the way.", "Claude Island hides behind the notch until a session needs you."),
-    (2.1, 9.1,  "QUESTIONS",  MAUVE,   "Claude has a\nquestion?", "You see it the moment it asks, from whatever app you are in."),
-    (9.1, 16.3, "PERMISSIONS", YELLOW, "Know what it\nwants to run.", "Permission requests show the exact command, so you know what you are saying yes to."),
-    (16.3, 22.3, "DONE",      GREEN,   "Finished work\nlights up.", "A calm green pulse when a run is done. No sound, no popups."),
-    (22.3, 34.5, "CHAT & CALENDAR", TEAL, "Messages and\nmeetings too.", "Chat pings and your next call land in the same spot, one click to join."),
-    (34.7, 42.5, "OVERVIEW",  BLUE,    "Every session,\nat a glance.", "Live activity per session, grouped by account, with your usage limits."),
-    (42.5, 47.4, "TASK QUEUES", LAV,   "Queue the work.\nWalk away.", "Chain tasks per session: verify, then ship. It only stops when it is blocked."),
-    (47.4, 53.0, "YOUR TASKS", PINK,   "Your to-dos,\nsynced.", "A personal list kept in Apple Reminders, one hotkey away: Ctrl-Option-T."),
+    (2.0, 6.5,   "WAITING ON YOU", MAUVE, "Claude asked.\nYou saw it.", "From whatever app you are in, the moment it needs an answer."),
+    (9.0, 13.5,  "PERMISSIONS", YELLOW, "Know what it\nwants to run.", "The exact command, so you know what you are saying yes to."),
+    (16.2, 20.0, "DONE",      GREEN,   "Done lights up.", "A calm green pulse. No sound, no popups."),
+    (34.9, 42.0, "OVERVIEW",  BLUE,    "Every session,\nat a glance.", "Who is working, who is blocked, and your usage limits."),
+    (42.0, 47.0, "TASK QUEUES", LAV,   "Queue the work.\nWalk away.", "Verify, then ship. It only stops when it is blocked."),
 ]
 
 
@@ -179,25 +189,28 @@ def zoom_at(t):
 def make_card_video(path):
     """Crops and scales the raw footage per frame (sub-pixel, so the zoom is smooth) into a CW x CH video."""
     k = CW / RAW_W
-    dec = subprocess.Popen(["ffmpeg", "-v", "error", "-ss", str(RAW_START), "-t", str(MAIN), "-i", RAW, "-vf", "fps=60",
-                            "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], stdout=subprocess.PIPE)
     enc = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{CW}x{CH}", "-r", "60",
                             "-i", "-", "-c:v", "libx264", "-preset", "fast", "-crf", "10", "-pix_fmt", "yuv420p", path],
                            stdin=subprocess.PIPE)
-    n, size = 0, RAW_W * RAW_H * 3
-    while True:
-        buf = dec.stdout.read(size)
-        if len(buf) < size:
-            break
-        z = zoom_at(RAW_START + n / 60)
-        vw, vh = CW / (k * z), CH / (k * z)
-        x0 = (RAW_W - vw) / 2
-        frame = Image.frombytes("RGB", (RAW_W, RAW_H), buf).resize((CW, CH), Image.LANCZOS, box=(x0, 0, x0 + vw, min(vh, RAW_H)))
-        enc.stdin.write(frame.tobytes())
-        n += 1
+    size = RAW_W * RAW_H * 3
+    for a, b, speed in SEGMENTS:
+        dec = subprocess.Popen(["ffmpeg", "-v", "error", "-ss", str(a), "-t", str(b - a), "-i", RAW,
+                                "-vf", f"setpts=PTS/{speed},fps=60",
+                                "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], stdout=subprocess.PIPE)
+        n = 0
+        while True:
+            buf = dec.stdout.read(size)
+            if len(buf) < size:
+                break
+            z = zoom_at(a + n / 60 * speed)
+            vw, vh = CW / (k * z), CH / (k * z)
+            x0 = (RAW_W - vw) / 2
+            frame = Image.frombytes("RGB", (RAW_W, RAW_H), buf).resize((CW, CH), Image.LANCZOS, box=(x0, 0, x0 + vw, min(vh, RAW_H)))
+            enc.stdin.write(frame.tobytes())
+            n += 1
+        dec.wait()
     enc.stdin.close()
     enc.wait()
-    dec.wait()
 
 
 def run(cmd):
@@ -214,7 +227,7 @@ def main():
     shadow.save(f"{TMP}/shadow.png")
     ring.save(f"{TMP}/ring.png")
     rounded_mask((CW, CH), 30).save(f"{TMP}/mask.png")
-    make_title(bg, "Claude Island", "Your Claude Code sessions, living in the notch.").save(f"{TMP}/intro.png")
+    make_title(bg, "Claude Island", "Never leave Claude waiting again.").save(f"{TMP}/intro.png")
     make_title(bg, "Claude Island", "Free and open source for macOS.", REPO).save(f"{TMP}/outro.png")
     for i, (_, _, tag, col, title, sub) in enumerate(CAPTIONS):
         make_caption(tag, col, title, sub).save(f"{TMP}/cap{i}.png")
@@ -239,17 +252,17 @@ def main():
          f"[b2][4:v]overlay=0:0:format=auto[b3]"]
     last = "b3"
     for i, (a, b, *_rest) in enumerate(CAPTIONS):
-        t0, t1 = INTRO + a - RAW_START, INTRO + b - RAW_START
+        t0, t1 = vt(a), vt(b)
         if i == 0:
             t0 = INTRO - 0.2
         if i == len(CAPTIONS) - 1:
             t1 = INTRO + MAIN + 0.2
-        g.append(f"[{cap0 + i}:v]format=rgba,fade=t=in:st={t0:.2f}:d=0.5:alpha=1,fade=t=out:st={t1 - 0.4:.2f}:d=0.4:alpha=1[c{i}]")
+        g.append(f"[{cap0 + i}:v]format=rgba,fade=t=in:st={t0:.2f}:d=0.3:alpha=1,fade=t=out:st={t1 - 0.25:.2f}:d=0.25:alpha=1[c{i}]")
         g.append(f"[{last}][c{i}]overlay=0:0:format=auto[o{i}]")
         last = f"o{i}"
-    g.append(f"[{intro_i}:v]format=rgba,fade=t=out:st={INTRO - 0.7:.2f}:d=0.7:alpha=1[ti]")
+    g.append(f"[{intro_i}:v]format=rgba,fade=t=out:st={INTRO - 0.5:.2f}:d=0.5:alpha=1[ti]")
     g.append(f"[{last}][ti]overlay=0:0:format=auto[t1]")
-    g.append(f"[{outro_i}:v]format=rgba,fade=t=in:st={TOTAL - OUTRO:.2f}:d=0.7:alpha=1[to]")
+    g.append(f"[{outro_i}:v]format=rgba,fade=t=in:st={TOTAL - OUTRO:.2f}:d=0.5:alpha=1[to]")
     g.append(f"[t1][to]overlay=0:0:format=auto,format=yuv420p[v]")
 
     out = f"{OUT}/demo.mp4"
@@ -258,11 +271,12 @@ def main():
          "-movflags", "+faststart", out])
 
     # poster (the overview scene) and a README gif of the story without intro/outro
-    run(["ffmpeg", "-v", "error", "-y", "-ss", f"{INTRO + 38.0 - RAW_START}", "-i", out, "-frames:v", "1", "-q:v", "3", f"{OUT}/poster.jpg"])
+    run(["ffmpeg", "-v", "error", "-y", "-ss", f"{vt(38.0)}", "-i", out, "-frames:v", "1", "-q:v", "3", f"{OUT}/poster.jpg"])
     pal = f"{TMP}/pal.png"
     vf = "fps=15,scale=960:-1:flags=lanczos"
-    run(["ffmpeg", "-v", "error", "-y", "-ss", f"{INTRO}", "-t", "47", "-i", out, "-vf", f"{vf},palettegen=max_colors=160:stats_mode=diff", pal])
-    run(["ffmpeg", "-v", "error", "-y", "-ss", f"{INTRO}", "-t", "47", "-i", out, "-i", pal, "-lavfi",
+    gt = f"{MAIN:.2f}"
+    run(["ffmpeg", "-v", "error", "-y", "-ss", f"{INTRO}", "-t", gt, "-i", out, "-vf", f"{vf},palettegen=max_colors=160:stats_mode=diff", pal])
+    run(["ffmpeg", "-v", "error", "-y", "-ss", f"{INTRO}", "-t", gt, "-i", out, "-i", pal, "-lavfi",
          f"{vf}[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle", f"{OUT}/demo.gif"])
     print("done:", out)
 

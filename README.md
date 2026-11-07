@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="docs/demo.mp4"><img src="docs/demo.gif" width="760" alt="Claude Island demo (click for the full video)"></a><br>
-  <sub>Everything above is the real app running on made-up data. <a href="docs/demo.mp4">Watch the full video (1 min)</a>.</sub>
+  <sub>Everything above is the real app running on made-up data. <a href="docs/demo.mp4">Watch the full video (20 s)</a>.</sub>
 </p>
 
 ---
