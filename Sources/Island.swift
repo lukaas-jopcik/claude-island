@@ -417,6 +417,7 @@ final class IslandModel: ObservableObject {
     @Published var mode: Display = .rest          // .rest / .banner / .overview on `activeScreen`
     @Published var activeScreen: CGDirectDisplayID?
     @Published var hoverScreen: CGDirectDisplayID?
+    @Published var fullscreenScreens: Set<CGDirectDisplayID> = []   // a fullscreen app covers the screen: the resting notch hides
     @Published var tab: OverviewTab = .sessions
     @Published var expanded: String?              // session whose queue editor is open
     @Published var sending: String?               // reminder being handed to a session
@@ -907,7 +908,7 @@ struct IslandView: View {
         let t = target(d, hover: hover)
         let g = geo ?? t
         let shape = IslandShape(flare: g.flare, bottom: g.bottom)
-        let visible = screen.hasNotch || d != .rest || g.h > 1
+        let visible = (screen.hasNotch || d != .rest || g.h > 1) && !(d == .rest && !hover && model.fullscreenScreens.contains(screen.id))
         let expanded = d == .banner || d == .overview
 
         let gk: Kind? = glowKind(d) ?? lastGlow   // the light fades out in the color it had
@@ -1193,6 +1194,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.model.drainEvents { self.screenUnderMouse() }
         }
         Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in self?.trackMouse() }
+        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.updateFullscreen() }
         NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self, self.model.mode == .overview else { return }
             self.model.collapse()
@@ -1330,6 +1332,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let m = NSEvent.mouseLocation
         _ = m
         return controllers.first?.screen.id
+    }
+
+    /// A window of another app that covers a whole display (menu bar included) means a fullscreen app: the resting notch steps aside.
+    func updateFullscreen() {
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else { return }
+        let me = Int(ProcessInfo.processInfo.processIdentifier)
+        var found = Set<CGDirectDisplayID>()
+        for c in controllers {
+            let b = CGDisplayBounds(c.screen.id)
+            for w in list {
+                guard (w[kCGWindowLayer as String] as? Int) == 0, (w[kCGWindowOwnerPID as String] as? Int) != me,
+                      let d = w[kCGWindowBounds as String] as? NSDictionary,
+                      let r = CGRect(dictionaryRepresentation: d) else { continue }
+                if abs(r.minX - b.minX) < 2, abs(r.minY - b.minY) < 2, abs(r.width - b.width) < 2, abs(r.height - b.height) < 2 { found.insert(c.screen.id); break }
+            }
+        }
+        if found != model.fullscreenScreens { model.fullscreenScreens = found }
     }
 
     func trackMouse() {

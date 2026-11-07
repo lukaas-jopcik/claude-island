@@ -24,6 +24,8 @@ swiftc -O "$WORK/mouse.swift" -o "$WORK/mouse" 2>/dev/null
 HOME_PTR="$("$WORK/mouse")"
 trap 'kill $(jobs -p) 2>/dev/null || true; "$WORK/mouse" $HOME_PTR 2>/dev/null || true; rm -rf "$WORK"' EXIT
 "$WORK/mouse" 300 600
+SW="$(osascript -e 'tell application "Finder" to get item 3 of (get bounds of window of desktop)')"   # main display width in points: the notch sits in the middle
+CX=$((SW / 2))
 
 "$WORK/backdrop" >/dev/null & sleep 1
 ISLAND_DEMO=1 ISLAND_HOME="$H" "$APP" >/dev/null 2>&1 & sleep 3
@@ -48,29 +50,23 @@ PY
 }
 
 # storyline -------------------------------------------------------------------------------------------------------------
-screencapture -v -V 54 -R 415,0,640,580 "$OUT" &
+screencapture -v -V 31 -R $((CX - 320)),0,640,580 "$OUT" &
 REC=$!
-sleep 2.0                                                                              # the island at rest, hidden in the notch
+sleep 1.5                                                                              # the island at rest, hidden in the notch
+banner permission "Needs permission" "Bash: rm -rf build && git push --force" mobile-app mobile-app   # the hook: you were in another app
+sleep 5.0
 banner input "Waiting for input" "Which database should the migration target?" docs-site docs-site
-sleep 7.0
-banner permission "Needs permission" "Bash: npm run migrate" mobile-app mobile-app
-sleep 7.0
+sleep 5.0
 flip api-gateway waiting "" ""
 banner done "Done" "All 42 tests pass" api-gateway api-gateway
-sleep 6.0
-banner chat "Maya Novak" "Can you review the checkout PR before lunch?" "#storefront" ""
-sleep 6.0
-banner meeting "Design review" "Starts in 5 min · 15:00" "Join call" ""
-sleep 6.5
+sleep 4.5
 ev '{"kind":"overview"}'                                                               # the whole picture
-sleep 1.0; "$WORK/mouse" 690 14
+sleep 1.0; "$WORK/mouse" $((CX - 45)) 14
 sleep 3.0
 flip docs-site working "" "Running the migration"                                      # you answered: the row comes alive
 sleep 3.5
 ev '{"kind":"overview","expand":"storefront"}'                                         # a session's task queue
 sleep 5.0
-ev '{"kind":"overview","tab":"tasks","expand":""}'                                     # your own tasks
-sleep 4.4
 ev '{"kind":"collapse"}'
 sleep 0.5; "$WORK/mouse" 300 600
 wait $REC || true

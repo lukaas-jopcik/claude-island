@@ -22,7 +22,7 @@ CW, CH = 980, 888            # the "display" the footage plays in
 CX, CY = 880, 96
 INTRO, OUTRO = 2.0, 2.8
 # the cut: (raw start, raw end, playback speed). Only the beats that sell the product, played fast.
-SEGMENTS = [(2.0, 6.5, 1.6), (9.0, 13.5, 1.6), (16.2, 20.0, 1.7), (34.9, 47.0, 1.4)]
+SEGMENTS = [(1.5, 6.3, 1.5), (6.5, 10.5, 1.7), (11.5, 15.5, 1.7), (16.4, 28.0, 1.4)]
 MAIN = sum((b - a) / s for a, b, s in SEGMENTS)
 TOTAL = INTRO + MAIN + OUTRO
 
@@ -108,12 +108,11 @@ def make_card_layers():
 
 # --- captions ---------------------------------------------------------------------------------------------------------
 CAPTIONS = [
-    # raw start, raw end, tag, colour, title, sub  (times measured from the recording, see demo/record.sh)
-    (2.0, 6.5,   "WAITING ON YOU", MAUVE, "Claude asked.\nYou saw it.", "From whatever app you are in, the moment it needs an answer."),
-    (9.0, 13.5,  "PERMISSIONS", YELLOW, "Know what it\nwants to run.", "The exact command, so you know what you are saying yes to."),
-    (16.2, 20.0, "DONE",      GREEN,   "Done lights up.", "A calm green pulse. No sound, no popups."),
-    (34.9, 42.0, "OVERVIEW",  BLUE,    "Every session,\nat a glance.", "Who is working, who is blocked, and your usage limits."),
-    (42.0, 47.0, "TASK QUEUES", LAV,   "Queue the work.\nWalk away.", "Verify, then ship. It only stops when it is blocked."),
+    (1.5, 6.3,   "YOU WERE IN SLACK", YELLOW, "Claude wants to\nrun this.", "The exact command, in the notch, while you are in another app."),
+    (6.5, 10.5,  "WAITING ON YOU", MAUVE, "A question?\nYou saw it.", "No hunting through tabs for the session that is stuck."),
+    (11.5, 15.5, "DONE",      GREEN,   "Done lights up.", "A calm green pulse. No sound, no popups."),
+    (16.4, 23.5, "OVERVIEW",  BLUE,    "Every session,\nat a glance.", "Who is working, who is blocked, and your usage limits."),
+    (23.5, 28.0, "TASK QUEUES", LAV,   "Queue the work.\nWalk away.", "Verify, then ship. It only stops when it is blocked."),
 ]
 
 
@@ -173,9 +172,15 @@ def make_title(bg, headline, sub, foot=None):
 
 
 # --- camera: smooth zoom over the raw footage -------------------------------------------------------------------------------
-RAW_W, RAW_H = 1280, 1160
+def _raw_size():
+    out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v", "-show_entries", "stream=width,height", "-of", "csv=p=0", RAW],
+                         capture_output=True, text=True).stdout.strip().split(",")
+    return int(out[0]), int(out[1])
+
+
+RAW_W, RAW_H = _raw_size() if os.path.exists(RAW) else (1280, 1160)
 # (raw time, zoom): banners are shown big, the overview and the queue editor need the whole screen
-ZOOM = [(0.0, 1.9), (21.4, 1.9), (22.2, 1.3), (33.9, 1.3), (34.9, 1.12), (41.7, 1.12), (42.6, 1.0), (46.6, 1.0), (47.5, 1.5), (60, 1.5)]
+ZOOM = [(0.0, 1.9), (15.4, 1.9), (16.4, 1.12), (23.2, 1.12), (24.1, 1.0), (60, 1.0)]
 
 
 def zoom_at(t):
@@ -271,7 +276,7 @@ def main():
          "-movflags", "+faststart", out])
 
     # poster (the overview scene) and a README gif of the story without intro/outro
-    run(["ffmpeg", "-v", "error", "-y", "-ss", f"{vt(38.0)}", "-i", out, "-frames:v", "1", "-q:v", "3", f"{OUT}/poster.jpg"])
+    run(["ffmpeg", "-v", "error", "-y", "-ss", f"{vt(20.0)}", "-i", out, "-frames:v", "1", "-q:v", "3", f"{OUT}/poster.jpg"])
     pal = f"{TMP}/pal.png"
     vf = "fps=15,scale=960:-1:flags=lanczos"
     gt = f"{MAIN:.2f}"
