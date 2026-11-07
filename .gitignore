@@ -1,0 +1,6 @@
+build/
+demo/raw.mov
+demo/.build/
+__pycache__/
+.DS_Store
+*.bak*

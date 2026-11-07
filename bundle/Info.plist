@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key><string>dev.claude-island</string>
+    <key>CFBundleName</key><string>Claude Island</string>
+    <key>CFBundleDisplayName</key><string>Claude Island</string>
+    <key>CFBundleExecutable</key><string>claude-island</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
+    <key>CFBundleShortVersionString</key><string>2.0</string>
+    <key>CFBundleVersion</key><string>2</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>LSUIElement</key><true/>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Claude Island shows your next meeting in the notch. Choose the calendars with ~/.claude/island/calendars.conf.</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>Claude Island keeps your task list in sync with the “Claude” list in Reminders, so tasks reach your iPhone and can be handed to a Claude Code session.</string>
+    <key>NSRemindersUsageDescription</key>
+    <string>Claude Island keeps your task list in sync with the “Claude” list in Reminders.</string>
+</dict>
+</plist>
